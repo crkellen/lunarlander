@@ -10,9 +10,17 @@ WINDOW = pygame.display.set_mode((WIDTH, HEIGHT))
 
 BACKGROUND_COLOR = (0, 0, 0)
 LANDER_COLOR = (0, 255, 0)
+PLATFORM_COLOR = (0, 0, 255)
+WALL_COLOR = (255, 0, 0)
 
 FONT = pygame.font.SysFont('monospace', 15)
-DONE = False
+DONE = False   #Game Loop
+EXIT = False   #End Screen Loop
+PLAYER_WIN = False #True if player successfully lands
+
+#Scoring Variables
+FUEL = 500
+SCORE = 0
 
 #Main Screen for drawing
 DRAW_SCREEN = pygame.Surface((WIDTH,HEIGHT))
@@ -36,8 +44,16 @@ ADD_THRUST_LEFT = False
 ADD_THRUST_RIGHT = False
 
 #Velocity Text
-VELX_LABEL = FONT.render('Velocity X: ', 1, (255, 255, 0))
-VELY_LABEL = FONT.render('Velocity Y: ', 1, (255, 255, 0))
+ACCX_LABEL = FONT.render('Acceleration X: ', 1, (255, 255, 0))
+ACCY_LABEL = FONT.render('Acceleration Y: ', 1, (255, 255, 0))
+
+#Score Text
+FUEL_LABEL = FONT.render('FUEL: {}'.format(FUEL), 1, (255, 255, 0))
+
+#End Screen Text
+YOU_WIN_LABEL = FONT.render('You successfully completed the mission!', 1, (255, 255, 0))
+YOU_LOSE_LABEL = FONT.render('You failed to complete the mission!', 1, (255, 255, 0))
+REPLAY_LABEL = FONT.render('Press R to play again!', 1, (255, 255, 0))
 
 class Lander:
 	def __init__(self, isAlive = True, pos = Vec2d(0,0), vel = Vec2d(0,0)):
@@ -45,30 +61,67 @@ class Lander:
 		self.pos = pos
 		self.vel = vel
 		self.acc = Vec2d(0,0)
+		self.pRect = pygame.Rect(self.pos.x, self.pos.y, 20, 20)
 	
 	def move_self(self, dt):
 		self.pos += self.vel * dt + .5 * self.acc * dt * dt
 		
-	def add_force(self, force, dt):
-		self.vel += force * dt
-		if self.vel.x > 2:
-			self.vel.x = 2
-		elif self.vel.x < -2:
-			self.vel.x = -2;
-		if self.vel.y > 2:
-			self.vel.y = 2
-		elif self.vel.y < -2:
-			self.vel.y = -2
+	def add_force(self, force):
+		self.acc += force
 		
 	def draw_self(self, surface):
-		pygame.draw.rect(surface, LANDER_COLOR, pygame.Rect(self.pos.x, self.pos.y, 20, 20), 5)
+		self.pRect = pygame.Rect(self.pos.x, self.pos.y, 20, 20)
+		pygame.draw.rect(surface, LANDER_COLOR, self.pRect, 1)
 	
+class Platform:
+	def __init__(self, pos = Vec2d(0,0), threshold = Vec2d(1,1)):
+		self.pos = pos
+		self.threshold = threshold
+		self.lowerHalf = pygame.Rect(self.pos.x, self.pos.y+2, 20, 8)
+		self.landingPad = pygame.Rect(self.pos.x+5, self.pos.y, 10, 2)
+	
+	def draw_self(self, surface):
+		pygame.draw.rect(surface, LANDER_COLOR, self.landingPad, 1)
+		pygame.draw.rect(surface, (0,255,255), self.lowerHalf, 1)
+		
+class Wall:
+	def __init__(self, bounds = pygame.Rect(0,0,1,1)):
+		self.bounds = bounds
+		
+	def draw_self(self, surface):
+		pygame.draw.rect(surface, WALL_COLOR, self.bounds, 1)
+	
+def reset_game():
+	global DONE, TIMESTEPS, GOAL
+	
+	GOAL = Platform(Vec2d(random.randint(100,700), random.randint(100,500)), Vec2d(1,1))
+	
+	PLAYER.pos = Vec2d(400,300)
+	PLAYER.vel = Vec2d(0,0)
+	PLAYER.acc = Vec2d(0,0)
+	PLAYER.isAlive = True
+	
+	FUEL = 500
+	
+	PLAYER_WIN = False
+	TIMESTEPS = 0
+	
+	DONE = False
+	#This actually is probably a bad idea so figure this out later
+	game_loop()
+
 def handle_events():
-	global ADD_THRUST_UP, ADD_THRUST_LEFT, ADD_THRUST_RIGHT, DONE
+	global ADD_THRUST_UP, ADD_THRUST_LEFT, ADD_THRUST_RIGHT, DONE, EXIT
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
 			DONE = True
+			EXIT = True
 		if event.type == pygame.KEYDOWN:
+			if event.key == pygame.K_ESCAPE:
+				DONE = True
+				EXIT = True
+			if event.key == pygame.K_r:
+				reset_game()
 			if event.key == pygame.K_w:
 				ADD_THRUST_UP = True
 			if event.key == pygame.K_a:
@@ -87,28 +140,82 @@ def update_positions(dt):
 	if PLAYER.isAlive == True:
 		PLAYER.move_self(dt)
 				
-def update_force(dt):
+def update_force():
+	global FUEL
 	if ADD_THRUST_UP == True:
-		PLAYER.add_force(THRUST_UP, dt)
+		PLAYER.add_force(THRUST_UP)
+		FUEL -= .2
 	if ADD_THRUST_LEFT == True:
-		PLAYER.add_force(THRUST_LEFT, dt)
+		PLAYER.add_force(THRUST_LEFT)
+		FUEL -= .1
 	if ADD_THRUST_RIGHT == True:
-		PLAYER.add_force(THRUST_RIGHT, dt)
-	PLAYER.add_force(GRAVITY, dt)				
+		PLAYER.add_force(THRUST_RIGHT)
+		FUEL -= .1
+	PLAYER.add_force(GRAVITY)				
 
 def update_labels():
-	global VELX_LABEL, VELY_LABEL
-	VELX_LABEL = FONT.render('Velocity X: {:.2f}'.format(PLAYER.vel.x), 1, (255, 255, 0))
-	VELY_LABEL = FONT.render('Velocity Y: {:.2f}'.format(PLAYER.vel.y), 1, (255, 255, 0))
+	global ACCX_LABEL, ACCY_LABEL, FUEL_LABEL
+	ACCX_LABEL = FONT.render('Acceleration X: {:.2f}'.format(PLAYER.acc.x), 1, (255, 255, 0))
+	ACCY_LABEL = FONT.render('Acceleration Y: {:.2f}'.format(PLAYER.acc.y), 1, (255, 255, 0))
+	FUEL_LABEL = FONT.render('FUEL: {:.2f}'.format(FUEL), 1, (255, 255, 0))
+	
+def check_collision(): #ALL OF THE PLAYER_WIN = False LINES ARE NOT NEEDED
+	global DONE, PLAYER_WIN
+	#If player collides with the top(Landing Pad)
+	if PLAYER.pRect.colliderect(GOAL.landingPad):
+		if PLAYER.acc.x < GOAL.threshold.x and PLAYER.acc.y < GOAL.threshold.y:
+			if PLAYER.acc.x > -GOAL.threshold.x and PLAYER.acc.y > -GOAL.threshold.y:
+				print('YOU WIN BUDDY')
+				PLAYER_WIN = True
+				DONE = True
+			else:
+				print('YOU DIED BUDDY 2')
+				PLAYER_WIN = False
+				DONE = True
+		else:
+			print('YOU DIED BUDDY')
+			PLAYER_WIN = False
+			DONE = True
+	#If player collides with any other part of the Platform
+	if PLAYER.pRect.colliderect(GOAL.lowerHalf):
+		print('YOU DIED BUDDY 3')
+		PLAYER_WIN = False
+		DONE = True
+	#If player collides with any wall
+	for wall in WALLS:
+		if PLAYER.pRect.colliderect(wall.bounds):
+			print('YOU DIED BUDDY 4')
+			PLAYER_WIN = False
+			DONE = True
+	#If player runs out of fuel
+	if FUEL <= 0:
+		PLAYER_WIN = False
+		DONE = True
 	
 def update_screen():
-	WINDOW.blit(DRAW_SCREEN, (0, 0))
+	WINDOW.blit(DRAW_SCREEN, (0, 0))	
 	PLAYER_SCREEN.fill(BACKGROUND_COLOR)
+	
+	for wall in WALLS:
+		wall.draw_self(PLAYER_SCREEN)
+		
+	GOAL.draw_self(PLAYER_SCREEN)
+	
 	if PLAYER.isAlive == True:
 		PLAYER.draw_self(PLAYER_SCREEN)
+		
 	WINDOW.blit(PLAYER_SCREEN, (0,0))
-	WINDOW.blit(VELX_LABEL, (0,0))
-	WINDOW.blit(VELY_LABEL, (0,10))
+	WINDOW.blit(ACCX_LABEL, (0,0))
+	WINDOW.blit(ACCY_LABEL, (0,15))
+	WINDOW.blit(FUEL_LABEL, (0,30))
+	
+	if DONE == True:
+		if PLAYER_WIN == True:
+			WINDOW.blit(YOU_WIN_LABEL, (400,300))
+		else:
+			WINDOW.blit(YOU_LOSE_LABEL, (400,300))
+		WINDOW.blit(REPLAY_LABEL, (400,315))
+	
 	pygame.display.flip()
 
 def update_time():
@@ -116,17 +223,29 @@ def update_time():
 	TIMESTEPS += 1
 	CLOCK.tick(60)	
 	
+def end_screen():
+	update_screen()
+	
 def game_loop():
 	while not DONE:
 		handle_events()
 		update_positions(1)
-		update_force(1)
+		update_force()
 		update_labels()
+		check_collision()
 		update_screen()
-		update_time()	
+		update_time()
+	while not EXIT:
+		handle_events()
+		end_screen()
+		CLOCK.tick(60)
 
 #Player Object
 PLAYER = Lander(True, Vec2d(400,300), Vec2d(0,0))
+#Goal Object
+GOAL = Platform(Vec2d(random.randint(100,700), random.randint(100,500)), Vec2d(1,1))
+#Wall Object - Top, Bot, Left, Right
+WALLS = [Wall(pygame.Rect(0,0,800,1)), Wall(pygame.Rect(0,599,800,1)), Wall(pygame.Rect(0,0,1,600)), Wall(pygame.Rect(799,0,1,600))]
 		
 def main():
 	global FONT
@@ -137,7 +256,7 @@ def main():
 	pygame.display.quit()
 	pygame.quit()
 	
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         main()
     except Exception as e:
