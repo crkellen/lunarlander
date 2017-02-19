@@ -49,6 +49,8 @@ ACCY_LABEL = FONT.render('Acceleration Y: ', 1, (255, 255, 0))
 
 #Score Text
 FUEL_LABEL = FONT.render('FUEL: {}'.format(FUEL), 1, (255, 255, 0))
+TIME_LABEL = FONT.render('TIME: {}'.format(TIMESTEPS), 1, (255, 255, 0))
+SCORE_LABEL = FONT.render('SCORE: {}'.format(SCORE), 1, (255, 255, 0))
 
 #End Screen Text
 YOU_WIN_LABEL = FONT.render('You successfully completed the mission!', 1, (255, 255, 0))
@@ -92,7 +94,7 @@ class Wall:
 		pygame.draw.rect(surface, WALL_COLOR, self.bounds, 1)
 	
 def reset_game():
-	global DONE, TIMESTEPS, GOAL
+	global DONE, TIMESTEPS, GOAL, FUEL, SCORE
 	
 	GOAL = Platform(Vec2d(random.randint(100,700), random.randint(100,500)), Vec2d(1,1))
 	
@@ -102,6 +104,8 @@ def reset_game():
 	PLAYER.isAlive = True
 	
 	FUEL = 500
+	TIMESTEPS = 0
+	SCORE = 0
 	
 	PLAYER_WIN = False
 	TIMESTEPS = 0
@@ -154,19 +158,23 @@ def update_force():
 	PLAYER.add_force(GRAVITY)				
 
 def update_labels():
-	global ACCX_LABEL, ACCY_LABEL, FUEL_LABEL
+	global ACCX_LABEL, ACCY_LABEL, FUEL_LABEL, TIME_LABEL
 	ACCX_LABEL = FONT.render('Acceleration X: {:.2f}'.format(PLAYER.acc.x), 1, (255, 255, 0))
 	ACCY_LABEL = FONT.render('Acceleration Y: {:.2f}'.format(PLAYER.acc.y), 1, (255, 255, 0))
-	FUEL_LABEL = FONT.render('FUEL: {:.2f}'.format(FUEL), 1, (255, 255, 0))
+	FUEL_LABEL = FONT.render('FUEL: {}'.format(int(FUEL)), 1, (255, 255, 0))
+	TIME_LABEL = FONT.render('TIME: {}'.format(int(TIMESTEPS/60)), 1, (255, 255, 0))
 	
 def check_collision(): #ALL OF THE PLAYER_WIN = False LINES ARE NOT NEEDED
-	global DONE, PLAYER_WIN
+	global DONE, PLAYER_WIN, SCORE, SCORE_LABEL
 	#If player collides with the top(Landing Pad)
 	if PLAYER.pRect.colliderect(GOAL.landingPad):
 		if PLAYER.acc.x < GOAL.threshold.x and PLAYER.acc.y < GOAL.threshold.y:
 			if PLAYER.acc.x > -GOAL.threshold.x and PLAYER.acc.y > -GOAL.threshold.y:
 				print('YOU WIN BUDDY')
 				PLAYER_WIN = True
+				SCORE = FUEL * 2
+				SCORE += 10000 / TIMESTEPS
+				SCORE_LABEL = FONT.render('SCORE: {}'.format(int(SCORE)), 1, (255, 255, 0))
 				DONE = True
 			else:
 				print('YOU DIED BUDDY 2')
@@ -208,13 +216,15 @@ def update_screen():
 	WINDOW.blit(ACCX_LABEL, (0,0))
 	WINDOW.blit(ACCY_LABEL, (0,15))
 	WINDOW.blit(FUEL_LABEL, (0,30))
+	WINDOW.blit(TIME_LABEL, (0,45))
 	
 	if DONE == True:
 		if PLAYER_WIN == True:
-			WINDOW.blit(YOU_WIN_LABEL, (400,300))
+			WINDOW.blit(YOU_WIN_LABEL, (250,200))
+			WINDOW.blit(SCORE_LABEL, (250,230))
 		else:
-			WINDOW.blit(YOU_LOSE_LABEL, (400,300))
-		WINDOW.blit(REPLAY_LABEL, (400,315))
+			WINDOW.blit(YOU_LOSE_LABEL, (250,200))
+		WINDOW.blit(REPLAY_LABEL, (250,215))
 	
 	pygame.display.flip()
 
